@@ -1,5 +1,7 @@
-snowflake-snowpark-python
 streamlit
+snowflake-snowpark-python
+pandas
 requests
+
 
 
