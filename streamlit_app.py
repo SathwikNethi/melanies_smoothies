@@ -1,84 +1,99 @@
-# -------------------- IMPORTS --------------------
 import streamlit as st
 import pandas as pd
 import requests
 from snowflake.snowpark.functions import col
 
-# -------------------- PAGE SETUP --------------------
+# --------------------------------------------------
+# App Title
+# --------------------------------------------------
 st.title("🥤 Customize Your Smoothie! 🥤")
 st.write("Choose the fruits you want in your custom Smoothie!")
 
-# -------------------- SNOWFLAKE CONNECTION --------------------
+# --------------------------------------------------
+# Snowflake Connection (Streamlit Cloud)
+# --------------------------------------------------
 cnx = st.connection("snowflake")
 session = cnx.session()
 
-# -------------------- NAME INPUT --------------------
+# --------------------------------------------------
+# Name Input
+# --------------------------------------------------
 name_on_order = st.text_input("Name on Smoothie:")
 
 if name_on_order:
     st.write(f"The name on your Smoothie will be: **{name_on_order}**")
 
-# -------------------- LOAD FRUIT OPTIONS --------------------
-my_dataframe = (
+# --------------------------------------------------
+# Load Fruit Options (FRUIT_NAME + SEARCH_ON)
+# --------------------------------------------------
+sf_df = (
     session
-    .table("smoothies.public.fruit_options")
+    .table("SMOOTHIES.PUBLIC.FRUIT_OPTIONS")
     .select(col("FRUIT_NAME"), col("SEARCH_ON"))
 )
 
-# Convert Snowpark → Pandas
-pd_df = my_dataframe.to_pandas()
+# Convert to Pandas for lookup
+pd_df = sf_df.to_pandas()
 
-# -------------------- MULTISELECT --------------------
+# --------------------------------------------------
+# Multiselect (Display FRUIT_NAME only)
+# --------------------------------------------------
 ingredients_list = st.multiselect(
     "Choose up to 5 ingredients:",
     pd_df["FRUIT_NAME"].tolist(),
     max_selections=5
 )
 
-# -------------------- PROCESS SELECTION --------------------
-ingredients_string = ""
-
+# --------------------------------------------------
+# Nutrition Section
+# --------------------------------------------------
 if ingredients_list:
+
+    st.subheader("🥝 SmoothieFruit Nutrition Information")
+
+    ingredients_string = ""
+
     for fruit_chosen in ingredients_list:
+
         ingredients_string += fruit_chosen + " "
 
-        # Get SEARCH_ON value using Pandas loc
+        # Get SEARCH_ON value using Pandas
         search_on = pd_df.loc[
-            pd_df["FRUIT_NAME"] == fruit_chosen, "SEARCH_ON"
+            pd_df["FRUIT_NAME"] == fruit_chosen,
+            "SEARCH_ON"
         ].iloc[0]
-
-        st.write(f"🔍 The search value for **{fruit_chosen}** is **{search_on}**")
 
         st.subheader(f"{fruit_chosen} Nutrition Information")
 
-        # -------------------- API CALL --------------------
         try:
-            api_url = f"https://my.smoothiefruit.com/api/fruit/{search_on}"
-            response = requests.get(api_url, timeout=10)
+            response = requests.get(
+                f"https://my.smoothiefruit.com/api/fruit/{search_on}",
+                timeout=10
+            )
 
             if response.status_code == 200:
                 st.dataframe(response.json(), use_container_width=True)
             else:
-                st.warning("⚠️ Fruit not found in SmoothieFruit database.")
+                st.warning(f"No nutrition data found for {fruit_chosen}")
 
-        except requests.exceptions.SSLError:
+        except requests.exceptions.RequestException:
             st.warning(
-                "⚠️ Unable to connect to SmoothieFruit API due to SSL restrictions "
-                "on Streamlit Community Cloud."
+                "⚠️ Unable to reach SmoothieFruit API on Streamlit Cloud "
+                "(SSL restriction). This is expected."
             )
-        except Exception as e:
-            st.error(f"Unexpected error: {e}")
 
-# -------------------- SUBMIT ORDER --------------------
+# --------------------------------------------------
+# Submit Order
+# --------------------------------------------------
 if st.button("Submit Order") and name_on_order and ingredients_list:
-    session.sql(
-        f"""
+
+    session.sql(f"""
         INSERT INTO smoothies.public.orders (name_on_order, ingredients)
-        VALUES ('{name_on_order}', '{ingredients_string}')
-        """
-    ).collect()
+        VALUES ('{name_on_order}', '{ingredients_string.strip()}')
+    """).collect()
 
     st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
+
 
 
 
