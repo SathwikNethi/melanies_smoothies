@@ -4,7 +4,6 @@ from snowflake.snowpark.functions import col
 st.title("🥤 Customize Your Smoothie! 🥤")
 st.write("Choose the fruits you want in your custom Smoothie!")
 
-# Snowflake connection (Streamlit Cloud way)
 cnx = st.connection("snowflake")
 session = cnx.session()
 
@@ -35,4 +34,5 @@ if st.button("Submit Order") and name_on_order and ingredients_list:
     """).collect()
 
     st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
+
 
